@@ -1,0 +1,5 @@
+# Cargo generated directory
+/target
+
+# Python virtual environment
+/.env
