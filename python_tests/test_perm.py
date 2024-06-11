@@ -1,6 +1,7 @@
 from permuta_rs import test
 from permuta import *
 import collections
+import time
 
 def test_py():
     # pi = Perm((2, 5, 0, 3, 6, 4, 7, 1))
@@ -33,8 +34,17 @@ def test_py():
     #         deq.appendleft((val, idx))
     # print(deq)
 
-    res = test([2, 0, 1])
-    print(res)
+    start = time.perf_counter()
+    test()
+    end = time.perf_counter()
+    print(end- start)
+
+    start = time.perf_counter()
+    ret = list(Perm((2, 0, 1)).occurrences_in(Perm((5, 3, 0, 4, 2, 1))))
+    end = time.perf_counter()
+    print(end- start)
+    
+    # print(ret)
     
 
 test_py()

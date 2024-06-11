@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 
 type Element = usize;
 
+#[derive(Clone)]
 pub struct Perm {
     val: Box<[Element]>,
 }
@@ -18,7 +19,7 @@ impl Perm {
         }
     }
 
-    pub fn pattern_details(&self) -> Vec<(Option<usize>, Option<usize>, usize, usize)> {
+    pub fn pattern_details(&self) -> PattDetails {
         //TODO: this should probably be one function with left_inf_sup
         self.val.iter().zip(self.left_inf_sup()).map(|(val, left_inf_sup)| {
             let space_below = match left_inf_sup.0 {
@@ -94,37 +95,126 @@ impl Patt for Perm {
         self
     }
     
-    fn patt_iter(&self, patt: &impl Patt) -> impl Iterator<Item = PattOccurrence>
+    fn patt_iter(&self, patt: &impl Patt) -> IntoPattIter<Self>
     where
         Self: Sized
     {
-        [vec![0]].into_iter() //todo! macro doesn't work with existential types for some reason
-        // //https://github.com/rust-lang/rust/issues/68610
-        
+        let patt = patt.get_perm().clone();
+        let patt_details = patt.pattern_details();
+        IntoPattIter {
+            perm: self.clone(),
+            patt,
+            patt_details,
+            curr: None,
+        }
     }
 }
 
-struct IntoPattIter<T: Patt + Sized>{
+type PattDetails = Vec<(Option<usize>, Option<usize>, usize, usize)>;
+
+pub struct IntoPattIter<T: Patt + Sized>{
     perm: T,
     patt: Perm,
-    curr: PattOccurrence,
+    patt_details: PattDetails,
+    curr: Option<PattOccurrence>,
 }
 
 impl<T: Patt + Sized> Iterator for IntoPattIter<T> {
     type Item = PattOccurrence;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let pi = self.perm.get_perm();
-        let n = self.patt.len();
-
-        if n == 0 || n > pi.len() {
+        if self.patt.len() == 0 || self.patt.len() > self.perm.get_perm().len() {
             return None;
         }
 
-        let patt_details = self.patt.pattern_details();
+        let (mut i, mut next_occ) = match self.curr.clone() {
+            Some(mut occ) => {
+                (occ.pop().unwrap() + 1, occ)
+            },
+            None => (0, vec![]),
+        };
 
-        let prev = &self.curr;
+        self.curr = loop {
+            match self.occurrences(i, next_occ.clone()) {
+                Some(occ) => break Some(occ),
+                None => {
+                    if next_occ.is_empty() {
+                        break None;
+                    } else {
+                        (i, next_occ) = (next_occ.pop().unwrap() + 1, next_occ);
+                    }
+                }
+            }
+        };
 
-        todo!()
+        self.curr.clone()
     }
+}
+
+impl<T: Patt> IntoPattIter<T> {
+    //TODO: better name
+        // i = position in pi to search from
+        // next = vec of indecies in occurrence we have so far
+        fn occurrences(&self, mut i: usize, mut next_occ: Vec<usize>) -> Option<PattOccurrence> {
+            let pi = self.perm.get_perm();
+
+            let n = self.patt.len();
+            let k = next_occ.len();
+
+            let (left_inf, left_sup, floor_dist, ceil_dist) = self.patt_details[k];
+            let lower_bound = match left_inf {
+                //smallest element of the pattern parsed so far
+                None => {
+                    //if we need to smallest element of the occurrence so far, then it can be at most the kth element of the pattern
+                    //e.g. if we need to find the second element of a 210 occurrence, then that element must be at most 1, because if
+                    //it was 0, then there wouldn't be a smaller element for the third element
+                    floor_dist
+                },
+                Some(inf) => {
+                    //next element must be at most as far from its left inf as patt[k] is from its left inf
+                    //so we are leaving room for the next elements in the occurrence
+                    //e.g. 3021 in 41032, if 4 and 1 is part of the occurrence, then the third element must be at most 
+                    //3, because if it was 2 or less, there wouldn't be an element between the second and third elements (1 and 2)
+                    //to form the fourth element in the pattern
+
+                    let occ_left_inf = pi.val[next_occ[inf]];
+                    occ_left_inf + floor_dist
+                },
+            };
+            let upper_bound = match left_sup {
+                //largest element of the pattern parsed so far
+                None => {
+                    pi.len() - ceil_dist
+                },
+                Some(sup) => {
+                    let occ_left_sup = pi.val[next_occ[sup]];
+                    occ_left_sup - ceil_dist
+                },
+            };
+
+            loop {
+                let elmts_needed = n - k;
+                let perm_elmts_left = pi.len() - i;
+
+                if perm_elmts_left < elmts_needed {
+                    return None;
+                }
+                
+                let element = pi.val[i];
+                if (lower_bound..=upper_bound).contains(&element) {
+                    next_occ.push(i);
+
+                    if elmts_needed == 1 {
+                        return Some(next_occ);
+                    }
+                    else {
+                        if let Some(occ) = self.occurrences(i + 1, next_occ.clone()) {
+                            return Some(occ);
+                        }
+                    }
+                }
+
+                i += 1;
+            }
+        }
 }
