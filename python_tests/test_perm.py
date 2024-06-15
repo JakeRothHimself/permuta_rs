@@ -34,18 +34,30 @@ def test_py():
     #         deq.appendleft((val, idx))
     # print(deq)
 
+    # start = time.perf_counter()
+    # test()
+    # end = time.perf_counter()
+    # print(end- start)
+
+    # start = time.perf_counter()
+    # ret = list(Perm((2, 0, 1)).occurrences_in(Perm((5, 3, 0, 4, 2, 1))))
+    # end = time.perf_counter()
+    # print(end- start)
+    
+    # print(ret)
+    # test()
+
+    # c = Av(Basis(Perm((0,2,1))))
+    # start = time.perf_counter()
+    # ret = len(list(c.of_length(15)))
+    # print(ret)
+    # end = time.perf_counter()
+    # print(end- start)
+
     start = time.perf_counter()
     test()
     end = time.perf_counter()
     print(end- start)
-
-    start = time.perf_counter()
-    ret = list(Perm((2, 0, 1)).occurrences_in(Perm((5, 3, 0, 4, 2, 1))))
-    end = time.perf_counter()
-    print(end- start)
-    
-    # print(ret)
-    
 
 test_py()
 

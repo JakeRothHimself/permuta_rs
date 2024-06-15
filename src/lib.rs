@@ -1,26 +1,42 @@
 mod rust_core;
 
 use pyo3::prelude::*;
-use rust_core::{patt::Patt, perm::Perm};
+use rust_core::{patt::Patt, perm::Perm, perm_sets::avoidance::AvoidanceClass};
 
 /// Formats the sum of two numbers as string.
 #[pyfunction]
 fn test() -> PyResult<()> {
-    let pi = Perm::new([5, 3, 0, 4, 2, 1].into_iter());
-    let patt = Perm::new([2, 0, 1].into_iter());
+    //let pi = Perm::new([5, 3, 0, 4, 2, 1].into_iter());
+    // let patt = Perm::new([2, 0, 1].into_iter());
 
-    let iter = pi.patt_iter(&patt);
+    // let iter = pi.patt_iter(&patt);
 
-    let mut n = 0;
-    for occ in iter {
-        //println!("{:?}", occ);
+    // let mut n = 0;
+    // for occ in iter {
+    //     //println!("{:?}", occ);
 
-        n += 1;
-        if n == 50 {
-            //print!("oops");
-            break;
-        }
-    }
+    //     n += 1;
+    //     if n == 50 {
+    //         //print!("oops");
+    //         break;
+    //     }
+    // }
+
+    // let new = pi.append(2);
+
+    // println!("{:?}", pi);
+    // println!("{:?}", new);
+
+    let mut class = AvoidanceClass::new(vec![Perm::new([0, 2, 1])]);
+
+    let n = 8;
+    class.build_perm_class(n);
+
+    println!("{}", class.perm_cache[n].len());
+
+    // for entry in (&class.perm_cache[4]).iter() {
+    //     println!("{:?} ", entry);
+    // }
 
     Ok(())
 }
