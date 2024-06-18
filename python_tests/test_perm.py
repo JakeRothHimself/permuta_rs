@@ -47,17 +47,25 @@ def test_py():
     # print(ret)
     # test()
 
-    # c = Av(Basis(Perm((0,2,1))))
-    # start = time.perf_counter()
-    # ret = len(list(c.of_length(15)))
-    # print(ret)
-    # end = time.perf_counter()
-    # print(end- start)
+    n = 15
+    # rs = 1
 
+    rust(n)
+    python(n)
+
+def rust(n):
     start = time.perf_counter()
-    test()
+    test(n)
     end = time.perf_counter()
-    print(end- start)
+    print("Rust:   ", end- start)
+
+def python(n):
+    c = Av(Basis(Perm((0,2,1))))
+    start = time.perf_counter()
+    ret = len(list(c.of_length(n)))
+    print(ret)
+    end = time.perf_counter()
+    print("Python: ", end- start)
 
 test_py()
 

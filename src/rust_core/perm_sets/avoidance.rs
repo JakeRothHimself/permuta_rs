@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::{Arc, Mutex}};
+use rayon::prelude::*;
 
 use crate::rust_core::{
     patt::Patt,
@@ -7,10 +8,12 @@ use crate::rust_core::{
 
 pub struct AvoidanceClass<P: Patt> {
     basis: Vec<P>,
-    pub perm_cache: Vec<HashMap<Perm, Option<Vec<usize>>>>,
+    pub perm_cache: PermCache,
 }
 
-impl<P: Patt> AvoidanceClass<P> {
+type PermCache = Vec<HashMap<Perm, Option<Vec<Element>>>>;
+
+impl<P: Patt + Send + Sync> AvoidanceClass<P> {
     pub fn new(basis: Vec<P>) -> Self {
         let mut map = HashMap::new();
         map.insert(Perm::new([]), None);
@@ -27,40 +30,50 @@ impl<P: Patt> AvoidanceClass<P> {
             .expect("patterns in the basis")
             .len();
 
+        //let nthreads = rayon::current_num_threads();
+        //TODO: change the cache structure such that we hold all perms of a given length in a vector
+        //      and we hold a map with references to those Perms as keys and valid appended values as values
+        //      this way, we can pass "chunks" of the immutable perm vector to threads and only allowing those
+        //      threads to mutate the map. We cannot do this with the current implementation because rayon's
+        //      par_chunks() method requires that we use a collection that has indecies so it can use slices as
+        //      chunks and also verify that all slices are disjoint
+
         while self.perm_cache.len() <= n {
             let curr_perm_len = self.perm_cache.len() - 1;
             let (left, right) = self.perm_cache.split_at_mut(curr_perm_len);
             let prev_cache_level = &mut left.last_mut();
             let curr_cache_level = &mut right[0];
 
-            let mut perms = HashMap::new();
+            let perms = Arc::new(Mutex::new(HashMap::new()));
 
-            for (perm, cached_elements) in curr_cache_level.iter_mut() {
-                let values = Self::valid_values(&perm, max_patt_len, &prev_cache_level.as_deref());
+            curr_cache_level.par_iter_mut().for_each(|(perm, cached_elements)| {
+                let mut appended_values = vec![];
+                let values = Self::valid_values(perm, max_patt_len, &prev_cache_level.as_deref());
                 for value in values {
                     let new_perm = perm.append(value);
 
-                    if self.basis.iter().any(|patt| patt.get_perm() != &new_perm) {
-                        perms.insert(new_perm, None);
-                        match cached_elements {
-                            Some(vec) => vec.push(value),
-                            None => {let _ = cached_elements.replace(vec![value]);},
-                        }
+                    if curr_perm_len + 1 > max_patt_len || !self.basis.iter().any(|patt| patt.get_perm() == &new_perm) {
+                        perms.lock().unwrap().insert(new_perm, None);
+                        appended_values.push(value);
                     }
                 }
-            }
 
+                cached_elements.replace(appended_values);
+            });
+
+            //clear prev cache level now that we're done with it
             if let Some(level) = prev_cache_level {
                 level.values_mut().for_each(|x| *x = None);
             }
 
-            self.perm_cache.push(perms);
+            let lock = Arc::try_unwrap(perms).expect("lock should have no other owners");
+            self.perm_cache.push(lock.into_inner().expect("no other threads holding lock"));
         }
     }
 
-    fn valid_values(perm: &Perm, max_patt_len: usize, prev_cache_level: &Option<&HashMap<Perm, Option<Vec<usize>>>>) -> Vec<usize> {
+    fn valid_values(perm: &Perm, max_patt_len: usize, prev_cache_level: &Option<&HashMap<Perm, Option<Vec<Element>>>>) -> Vec<Element> {
         //should only happen the first time through
-        if let None = prev_cache_level {
+        if prev_cache_level.is_none() {
             return vec![0];
         }
 
@@ -79,7 +92,7 @@ impl<P: Patt> AvoidanceClass<P> {
                 .as_ref()
                 .expect("Permutation to have cached extensions");
 
-            let mut potential_values: Vec<usize> = vec![];
+            let mut potential_values: Vec<Element> = vec![];
             for &k in elements {
                 if k <= val {
                     potential_values.push(k);
@@ -108,5 +121,9 @@ impl<P: Patt> AvoidanceClass<P> {
         }
 
         values.expect("values to be initialized")
+    }
+
+    pub fn perms_of_length(&self, n: usize) -> impl Iterator<Item = &Perm> {
+        self.perm_cache[n].iter().map(|entry| entry.0)
     }
 }

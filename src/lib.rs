@@ -5,7 +5,7 @@ use rust_core::{patt::Patt, perm::Perm, perm_sets::avoidance::AvoidanceClass};
 
 /// Formats the sum of two numbers as string.
 #[pyfunction]
-fn test() -> PyResult<()> {
+fn test(n: usize) -> PyResult<()> {
     //let pi = Perm::new([5, 3, 0, 4, 2, 1].into_iter());
     // let patt = Perm::new([2, 0, 1].into_iter());
 
@@ -29,13 +29,13 @@ fn test() -> PyResult<()> {
 
     let mut class = AvoidanceClass::new(vec![Perm::new([0, 2, 1])]);
 
-    let n = 8;
+    // let n = 3;
     class.build_perm_class(n);
 
     println!("{}", class.perm_cache[n].len());
 
-    // for entry in (&class.perm_cache[4]).iter() {
-    //     println!("{:?} ", entry);
+    // for perm in class.perms_of_length(3) {
+    //     println!("{:?} ", perm);
     // }
 
     Ok(())

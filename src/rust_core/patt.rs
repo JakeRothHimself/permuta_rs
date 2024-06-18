@@ -2,15 +2,10 @@ use super::perm::Perm;
 
 pub type PattOccurrence = Vec<usize>;
 
-pub trait Patt {
-    fn patt_iter(&self, patt: &impl Patt) -> impl Iterator<Item = PattOccurrence>
-    where
-        Self: Sized;
+pub trait Patt: Sized {
+    fn patt_iter(&self, patt: &impl Patt) -> impl Iterator<Item = PattOccurrence>;
 
-    fn occurrences_in(&self, pi: &Self) -> Vec<PattOccurrence>
-    where
-        Self: Sized,
-    {
+    fn occurrences_in(&self, pi: &Self) -> Vec<PattOccurrence>{
         self.patt_iter(pi).collect()
     }
 
@@ -19,9 +14,7 @@ pub trait Patt {
     fn get_perm(&self) -> &Perm;
 
     fn contains(&self, pi: &Self) -> bool
-    where
-        Self: Sized,
     {
-        matches!(self.patt_iter(pi).next(), Some(_))
+        self.patt_iter(pi).next().is_some()
     }
 }

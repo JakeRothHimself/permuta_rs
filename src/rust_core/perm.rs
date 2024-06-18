@@ -1,7 +1,9 @@
 use super::patt::{Patt, PattOccurrence};
 use std::collections::VecDeque;
 
-pub type Element = usize;
+//TODO: need some type of assertion that the permutations will not have length 256+
+//      maybe we should use Element as the index type instead of usize
+pub type Element = u8;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Perm {
@@ -31,7 +33,7 @@ impl Perm {
 
                 let space_above = match left_inf_sup.1 {
                     Some(sup) => self.val[sup] - val,
-                    None => self.len() - val,
+                    None => self.len() as Element - val,
                 };
 
                 (left_inf_sup.0, left_inf_sup.1, space_below, space_above)
@@ -154,7 +156,7 @@ impl Patt for Perm {
     }
 }
 
-type PattDetails = Vec<(Option<usize>, Option<usize>, usize, usize)>;
+type PattDetails = Vec<(Option<usize>, Option<usize>, Element, Element)>;
 
 pub struct IntoPattIter<T: Patt + Sized> {
     perm: T,
@@ -225,7 +227,7 @@ impl<T: Patt> IntoPattIter<T> {
         };
         let upper_bound = match left_sup {
             //largest element of the pattern parsed so far
-            None => pi.len() - ceil_dist,
+            None => pi.len() as Element - ceil_dist,
             Some(sup) => {
                 let occ_left_sup = pi.val[next_occ[sup]];
                 occ_left_sup - ceil_dist
