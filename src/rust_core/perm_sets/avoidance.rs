@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::{Arc, Mutex}};
+use std::{cmp::min, collections::HashMap, ops::Index, sync::{Arc, Mutex}};
+use indexmap::IndexMap;
 use rayon::prelude::*;
 
 use crate::rust_core::{
@@ -11,11 +12,13 @@ pub struct AvoidanceClass<P: Patt> {
     pub perm_cache: PermCache,
 }
 
-type PermCache = Vec<HashMap<Perm, Option<Vec<Element>>>>;
+type PermCache = Vec<CacheLevel>;
+type CacheLevel = CacheMap<Perm, Option<Vec<Element>>>;
+type CacheMap<K, V> = IndexMap<K, V>;
 
 impl<P: Patt + Send + Sync> AvoidanceClass<P> {
     pub fn new(basis: Vec<P>) -> Self {
-        let mut map = HashMap::new();
+        let mut map = CacheMap::new();
         map.insert(Perm::new([]), None);
         let perm_cache = vec![map];
 
@@ -30,7 +33,7 @@ impl<P: Patt + Send + Sync> AvoidanceClass<P> {
             .expect("patterns in the basis")
             .len();
 
-        //let nthreads = rayon::current_num_threads();
+        let num_threads = rayon::current_num_threads();
         //TODO: change the cache structure such that we hold all perms of a given length in a vector
         //      and we hold a map with references to those Perms as keys and valid appended values as values
         //      this way, we can pass "chunks" of the immutable perm vector to threads and only allowing those
@@ -44,21 +47,24 @@ impl<P: Patt + Send + Sync> AvoidanceClass<P> {
             let prev_cache_level = &mut left.last_mut();
             let curr_cache_level = &mut right[0];
 
-            let perms = Arc::new(Mutex::new(HashMap::new()));
+            let perms = Arc::new(Mutex::new(CacheMap::new()));
 
-            curr_cache_level.par_iter_mut().for_each(|(perm, cached_elements)| {
-                let mut appended_values = vec![];
-                let values = Self::valid_values(perm, max_patt_len, &prev_cache_level.as_deref());
-                for value in values {
-                    let new_perm = perm.append(value);
+            let chunk_size = min(curr_cache_level.len().div_ceil(num_threads), 500_000);
+            curr_cache_level.par_iter_mut().chunks(chunk_size).for_each(|chunk| {
+                for (perm, cached_elements) in chunk {
+                    let mut appended_values = vec![];
+                    let values = Self::valid_values(perm, max_patt_len, &prev_cache_level.as_deref());
+                    for value in values {
+                        let new_perm = perm.append(value);
 
-                    if curr_perm_len + 1 > max_patt_len || !self.basis.iter().any(|patt| patt.get_perm() == &new_perm) {
-                        perms.lock().unwrap().insert(new_perm, None);
-                        appended_values.push(value);
+                        if curr_perm_len + 1 > max_patt_len || !self.basis.iter().any(|patt| patt.get_perm() == &new_perm) {
+                            perms.lock().unwrap().insert(new_perm, None);
+                            appended_values.push(value);
+                        }
                     }
-                }
 
-                cached_elements.replace(appended_values);
+                    cached_elements.replace(appended_values);
+                }
             });
 
             //clear prev cache level now that we're done with it
@@ -71,7 +77,7 @@ impl<P: Patt + Send + Sync> AvoidanceClass<P> {
         }
     }
 
-    fn valid_values(perm: &Perm, max_patt_len: usize, prev_cache_level: &Option<&HashMap<Perm, Option<Vec<Element>>>>) -> Vec<Element> {
+    fn valid_values(perm: &Perm, max_patt_len: usize, prev_cache_level: &Option<&CacheLevel>) -> Vec<Element> {
         //should only happen the first time through
         if prev_cache_level.is_none() {
             return vec![0];

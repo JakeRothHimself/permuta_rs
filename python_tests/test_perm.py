@@ -47,7 +47,7 @@ def test_py():
     # print(ret)
     # test()
 
-    n = 15
+    n = 13
     # rs = 1
 
     rust(n)
